@@ -1,0 +1,193 @@
+/*
+* Most of this project is based from the tutorial link below.
+* https://isaacsukin.com/news/2012/06/how-build-first-person-shooter-browser-threejs-and-webglhtml5-canvas
+* Team members: Hau Luu, Andrew Adams, Craig Brown
+*/
+<!DOCTYPE html>
+<html>
+<head>
+	<title>3D Maze Final Project</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-witdh, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <script type="text/javascript" src="js/three.js"></script>
+    <script type="text/javascript" src="js/OrbitControls.js"></script>
+    <script type="text/javascript" src="js/FirstPersonControls.js"></script>
+	<style type="text/css">
+		#container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            background: black;
+        }
+	</style>
+</head>
+<body onLoad="init();">
+	<div id="container"></div>
+    <script>
+        var scene, camera, renderer, floor, walls, clock, controls, end;
+        var movespeed = 0.7;
+        var lookspeed = 0.2;
+        var Colors = {
+            white: 0xd8d0d1,
+            sky: 0x1c0303,
+            black: 0x2b2b2b,
+        };
+        
+                            //Left
+            var map = [  //1 2 3 4 5 6 7 8 9
+                        [1,1,1,1,1,1,1,1,1,1], //0
+                        [1,0,0,0,0,0,0,0,0,2], //1
+                        [1,0,1,1,0,0,1,1,1,1], //2
+                        [1,0,1,1,0,0,1,0,0,1], //3
+                        [1,0,1,1,0,0,1,1,0,1], //4
+                        [1,0,1,1,0,0,0,0,0,1], //5 Bottom
+                        [1,0,0,1,0,0,1,1,1,1], //6
+                        [1,1,1,1,0,0,1,1,0,3], //7
+                        [1,0,0,0,0,0,0,0,0,1], //8
+                        [1,1,1,1,1,1,1,1,1,1], //9
+                                //Right
+                    ], mapw = map.length, maph = map[0].length;
+        
+        var fov = 60;
+        var width = window.innerWidth, height = window.innerHeight;
+        var aspectRatio = width/height;
+        var near = 0.1, far = 10000;
+        
+        
+        function init(){
+            createScene();
+            createLights();
+            placeWalls();
+            render();
+        }
+        
+        function createScene(){
+            clock = new THREE.Clock();
+            
+            scene = new THREE.Scene;
+            scene.fog = new THREE.FogExp2(0x230909,0.5);
+            camera = new THREE.PerspectiveCamera(60,width/height,0.1,1000);
+            
+            renderer = new THREE.WebGLRenderer({antialias: true});
+            renderer.setSize(width,height);
+            renderer.setClearColor(Colors.sky);
+            renderer.shadowMapEnabled = true;
+            renderer.shadowMapType = THREE.PCFSoftShadowMap;
+            container = document.getElementById("container");
+            container.appendChild(renderer.domElement);
+            
+            camera.position.set(-4,0.3,3);
+            
+            controls = new THREE.FirstPersonControls(camera); // Handles camera control
+            controls.movementSpeed = movespeed; // How fast the player can walk around
+            controls.lookSpeed = lookspeed; // How fast the player can look around with the mouse
+            controls.lookVertical = false; // Don't allow the player to look up or down. This is a temporary fix to keep people from flying
+            controls.noFly = true; // Don't allow hitting R or F to go up or down
+            
+            scene.add(camera);
+            
+            var loader = new THREE.JSONLoader();
+            loader.load('models/monkey.js',
+                       function (geometry, materials){
+                var materials = new THREE.MeshLambertMaterial({color: 0x27bc51});
+                end = new THREE.Mesh(geometry,materials);
+                
+                scene.add(end);
+                end.scale.set(0.1,0.1,0.1);
+                end.rotation.set(0,3,0);
+                end.position.set(2,0.3,4);
+            })
+            
+            window.addEventListener('resize', function(){
+                var width = window.innerWidth,
+                    height = window.innerHeight;
+                renderer.setSize(width,height);
+                camera.aspect = width/height;
+                camera.updateProjectionMatrix();
+            })
+            
+        }
+        
+        var directionalLight, skyLight;
+        function createLights(){
+            skyLight = new THREE.HemisphereLight(Colors.sky, Colors.black, 0.8);
+            skyLight.castShadow = true;
+            directionalLight = new THREE.DirectionalLight(Colors.white,0.5);
+            directionalLight.position.set(0,5,0);
+            
+            
+            directionalLight.castShadow = true;
+            directionalLight.shadowDarkness = 0.5;
+            directionalLight.shadowCameraVisible = true;
+            
+            directionalLight.shadowCameraLeft = -10;
+            directionalLight.shadowCameraRight = 100;
+            directionalLight.shadowCameraTop = 10;
+            directionalLight.shadowCameraBottom = -10;
+            
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            
+            scene.add(skyLight);
+            scene.add(directionalLight);
+        }
+        
+        var floor;
+        function placeWalls(){
+            
+            var floorTextures = THREE.ImageUtils.loadTexture('images/Woodchips.jpg');
+            var floorMaterial = new THREE.MeshLambertMaterial({map: floorTextures});
+            
+            floor = new THREE.Mesh(new THREE.CubeGeometry(10,0.15,10),floorMaterial);
+            
+            floor.position.set(-0.5,-0.02,-0.5);
+            
+            scene.add(floor);
+            floor.receiveShadow = true;
+            
+         
+            // Generate the maze
+            var cube = new THREE.CubeGeometry(1,1/2,1);
+            
+            var materials = [ 
+                                new THREE.MeshLambertMaterial({map: THREE.ImageUtils.loadTexture('images/Brick.jpg')}),
+                                new THREE.MeshLambertMaterial({map: THREE.ImageUtils.loadTexture('images/StartingBrick.jpg')}),
+                                new THREE.MeshLambertMaterial({map: THREE.ImageUtils.loadTexture('images/EndingBrick.jpg')}),
+                            ];
+            for (var i = 0; i < mapw; i++){
+                for (var j = 0, m = map[i].length; j < m; j++){
+                    if (map[i][j]){
+                        var wall = new THREE.Mesh(cube,materials[map[i][j]-1]);
+                        wall.position.x = (i - mapw/2);
+                        wall.position.y = 0.3;
+				        wall.position.z = (j - mapw/2);
+				        scene.add(wall);
+                    }
+                }
+            }
+            wall.castShadow = true;
+            wall.receiveShadow = true;
+        
+        }
+        function distance(x1, y1, x2, y2) {
+            return Math.sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
+        }
+        function getMapSector(v) {
+            var x = Math.floor((v.x + 1 / 2) / 1 + mapw/2);
+            var z = Math.floor((v.z + 1 / 2) / 1 + mapw/2);
+            return {x: x, z: z};
+        }
+        function checkWallCollision(v) {
+            var c = getMapSector(v);
+            return map[c.x][c.z] > 0;
+        }
+
+        function render(){
+            requestAnimationFrame(render);    
+            renderer.render(scene,camera);
+            var delta = clock.getDelta();
+            controls.update(delta); 
+        }
+    </script>
+</body>
+</html>
